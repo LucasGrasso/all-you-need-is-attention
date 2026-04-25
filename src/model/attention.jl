@@ -52,7 +52,7 @@ function multihead_attention(
 
     # Apply mask if provided
     if mask !== nothing
-        scores[mask] .= -Inf
+        scores = scores .+ ifelse.(mask, T(-Inf), T(0))
     end
 
     weights = softmax(scores, dims=2)
