@@ -20,14 +20,11 @@ function TransformerInput(vocab_size::Int, d_model::Int, max_len::Int)
 end
 
 function (m::TransformerInput)(x::AbstractMatrix{Int}, ps, st)
-    # 1. Look up embeddings: Output is (d_model, seq_len)
-    # Note: Lux Embedding expects a vector of indices for a single sentence
     emb, st_emb = Lux.apply(m.embedding, x, ps.embedding, st)
 
     d_model = size(emb, 1)
     scaled_emb = emb .* sqrt(Float32(d_model))
 
-    # 2. Add Positional Encoding
     return m.pos_enc(scaled_emb), st_emb
 end
 
