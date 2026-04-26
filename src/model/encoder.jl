@@ -30,12 +30,12 @@ function (m::EncoderBlock)(X, ps, st)
     X, st_n1 = m.norm1(X .+ attn_out, ps.norm1, st.norm1)  # Add & Norm
 
     # Feed-forward
-    ffn_out, st_att = m.ffn(X, ps.ffn, st.ffn)
+    ffn_out, st_ffn = m.ffn(X, ps.ffn, st.ffn)
     X, st_n2 = m.norm2(X .+ ffn_out, ps.norm2, st.norm2)  # Add & Norm
 
     new_st = (
         multihead_attention=st_attn,
-        ffn=st_att,
+        ffn=st_ffn,
         norm1=st_n1,
         norm2=st_n2,
     )

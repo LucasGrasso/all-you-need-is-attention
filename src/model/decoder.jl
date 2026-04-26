@@ -29,7 +29,7 @@ function DecoderBlock(d_model::Int, h::Int, d_ff::Int)
 end
 
 function (m::DecoderBlock)((X, K_e, V_e)::Tuple, ps, st)
-    n = size(X, 1)
+    n = size(X, 2)  # Sequence length of the target input
 
     # Masked self-attention
     mask = triu(trues(n, n), 1)  # Upper triangular mask to prevent attending to future tokens
@@ -53,7 +53,8 @@ function (m::DecoderBlock)((X, K_e, V_e)::Tuple, ps, st)
         norm3=st_n3
     )
 
-    return X, new_st
+    # We return the updated target representation (X) along with the encoder's K and V for the next decoder block
+    return (X, K_e, V_e), new_st
 end
 
 end
