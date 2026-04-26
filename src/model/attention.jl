@@ -25,30 +25,36 @@ end
 
 function multihead_attention(
     m::MultiheadAttention,
-    Q::AbstractMatrix{T},   # (seq , n)
-    K::AbstractMatrix{T},   # (seq , n)
-    V::AbstractMatrix{T},   # (seq , n)
+    Q::AbstractMatrix{T},   # (d_model , seq_len) - NOTE: Julia's convention is column-major, so the sequence length is the second dimension
+    K::AbstractMatrix{T},   # (d_model , seq_len)
+    V::AbstractMatrix{T},   # (d_model , seq_len)
     WQ::AbstractMatrix{T},  # (d_model , d_model)
     WK::AbstractMatrix{T},  # (d_model , d_model)
     WV::AbstractMatrix{T},  # (d_model , d_model)
     WO::AbstractMatrix{T},  # (h x d_v , d_model)
     mask::Union{Nothing,AbstractMatrix{Bool}}=nothing
 ) where {T<:AbstractFloat}
+    seq_len = size(Q, 2)
+
     # Project
 
-    Q_proj = WQ * Q # (seq, d_model)
-    K_proj = WK * K # (seq, d_model)
-    V_proj = WV * V # (seq, d_model)
+    Q_proj = WQ * Q # (d_model, seq_len)
+    K_proj = WK * K # (d_model, seq_len)
+    V_proj = WV * V # (d_model, seq_len)
 
     # Split into heads
 
-    Q_h = reshape(Q_proj, n, m.d_k, m.h)  # (seq, d_k, h)
-    K_h = reshape(K_proj, n, m.d_k, m.h)  # (seq, d_k, h)
-    V_h = reshape(V_proj, n, m.d_v, m.h)  # (seq, d_v, h)
+    Q_h = reshape(Q_proj, m.d_k, m.h, seq_len)  # (d_k, h, seq_len)
+    K_h = reshape(K_proj, m.d_k, m.h, seq_len)  # (d_k, h, seq_len)
+    V_h = reshape(V_proj, m.d_v, m.h, seq_len)  # (d_v, h, seq_len)
+
+    Q_h = permutedims(Q_h, (1, 3, 2))  # (d_k, seq_len, h)
+    K_h = permutedims(K_h, (1, 3, 2))  # (d_k, seq_len, h)
+    V_h = permutedims(V_h, (1, 3, 2))  # (d_v, seq_len, h)
 
     # Now h is the batch dimention, so we can use batched matrix multiplication for attention scores
 
-    scores = batched_mul(Q_h, batched_adjoint(K_h)) ./ T(sqrt(m.d_k))  # (n, n, h)
+    scores = batched_mul(batched_adjoint(Q_h), K_h) ./ T(sqrt(m.d_k))  # (seq_len, seq_len, m.h)
 
     # Apply mask if provided
     if mask !== nothing
@@ -56,10 +62,11 @@ function multihead_attention(
     end
 
     weights = softmax(scores, dims=2)
-    heads = batched_mul(weights, V_h)  # (seq, d_v, h)
+    heads = batched_mul(V_h, batched_adjoint(weights))  # (d_v, seq_len, m.h)
+    concat = permutedims(heads, (1, 3, 2))  # (d_v, m.h, seq_len)
+    concat = reshape(concat, m.d_model, seq_len) # (d_model, seq_len)
 
-    concat = reshape(heads, n, m.d_v * m.h)  # (seq, h * d_v)
-    out = WO * concat  # (seq, d_model)
+    out = WO * concat  # (seq_len, m.d_model)
 
     return out
 end
