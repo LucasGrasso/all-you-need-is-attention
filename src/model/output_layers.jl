@@ -13,7 +13,7 @@ function TransformerOutput(d_model::Int, vocab_size::Int)
 end
 
 function (m::TransformerOutput)(x::AbstractMatrix, ps, st)
-    logits, st_proj = Lux.apply(m.projection, x, ps.projection, st)
+    logits, st_proj = Lux.apply(m.projection, x, ps.projection, st.projection)
     prob = softmax(logits; dims=1) # Apply softmax along the vocab dimension
     return prob, st_proj
 end

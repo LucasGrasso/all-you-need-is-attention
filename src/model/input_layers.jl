@@ -20,12 +20,14 @@ function TransformerInput(vocab_size::Int, d_model::Int, max_len::Int)
 end
 
 function (m::TransformerInput)(x::AbstractMatrix{Int}, ps, st)
-    emb, st_emb = Lux.apply(m.embedding, x, ps.embedding, st)
+    emb, st_emb = Lux.apply(m.embedding, x, ps.embedding, st.embedding)
 
     d_model = size(emb, 1)
     scaled_emb = emb .* sqrt(Float32(d_model))
 
-    return m.pos_enc(scaled_emb), st_emb
+    new_st = (embedding=st_emb,)
+
+    return m.pos_enc(scaled_emb), new_st
 end
 
 end

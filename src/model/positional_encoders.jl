@@ -23,7 +23,7 @@ function PositionalEncoding(d_model::Int, max_len::Int)
 
     i_term = 0:2:(d_model-1)
 
-    denominators = 10000.0 .^ (i_term ./ float32(d_model)) # . is the broadcasting operator
+    denominators = 10000.0 .^ (i_term ./ Float32(d_model)) # . is the broadcasting operator
 
     angles = (1 ./ denominators) .* pos'
 
