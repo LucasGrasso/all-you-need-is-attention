@@ -17,9 +17,10 @@ struct DecoderBlock <: Lux.AbstractLuxContainerLayer{(:masked_multihead_attentio
 end
 
 function DecoderBlock(d_model::Int, h::Int, d_ff::Int)
+    d_v = div(d_model, h)
     DecoderBlock(
-        MultiheadAttention(h, d_model, div(d_model, h), div(d_model, h)),  # masked multi-head attention
-        MultiheadAttention(h, d_model, div(d_model, h), div(d_model, h)),  # multi-head attention
+        MultiheadAttention(h, d_model, d_v, d_v),  # masked multi-head attention
+        MultiheadAttention(h, d_model, d_v, d_v),  # multi-head attention
         FeedForward(d_model, d_ff),
         LayerNorm((d_model,)),
         LayerNorm((d_model,)),

@@ -15,8 +15,9 @@ struct EncoderBlock <: Lux.AbstractLuxContainerLayer{(:multihead_attention, :ffn
 end
 
 function EncoderBlock(d_model::Int, h::Int, d_ff::Int)
+    d_v = div(d_model, h)
     EncoderBlock(
-        MultiheadAttention(h, d_model, div(d_model, h), div(d_model, h)),
+        MultiheadAttention(h, d_model, d_v, d_v),
         FeedForward(d_model, d_ff),
         LayerNorm((d_model,)),
         LayerNorm((d_model,))
