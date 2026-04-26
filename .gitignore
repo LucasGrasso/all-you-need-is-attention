@@ -1,0 +1,36 @@
+# Julia compiled cache
+*.ji
+*.so
+*.dylib
+*.dll
+
+# Julia depot / build artifacts
+deps/build.log
+deps/downloads/
+deps/usr/
+deps/src/
+
+# Manifest — commit this if you want reproducible environments
+# Uncomment to ignore it:
+# Manifest.toml
+
+# Local environment overrides
+*.local.toml
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+lcov.info
+*.cov
+
+# Documentation build
+docs/build/
+docs/site/
