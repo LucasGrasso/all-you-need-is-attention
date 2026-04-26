@@ -7,6 +7,8 @@ using Lux
 using ..Attention
 using ..FFN
 
+export DecoderBlock
+
 struct DecoderBlock <: Lux.AbstractLuxContainerLayer{(:masked_multihead_attention, :multihead_attention, :ffn, :norm1, :norm2, :norm3)}
     masked_multihead_attention::MultiheadAttention
     multihead_attention::MultiheadAttention

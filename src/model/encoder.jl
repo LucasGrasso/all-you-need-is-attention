@@ -7,6 +7,8 @@ using Lux
 using ..Attention
 using ..FFN
 
+export EncoderBlock
+
 struct EncoderBlock <: Lux.AbstractLuxContainerLayer{(:multihead_attention, :ffn, :norm1, :norm2)}
     multihead_attention::MultiheadAttention
     ffn::FeedForward

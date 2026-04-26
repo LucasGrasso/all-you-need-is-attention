@@ -6,7 +6,9 @@ include("./output_layers.jl")
 module AttTransformer
 
 using Lux
-using .Encoder, .Decoder, .InputLayers, .OutputLayers
+using ..Encoder, ..Decoder, ..InputLayers, ..OutputLayers
+
+export Transformer
 
 struct Transformer <: Lux.AbstractLuxContainerLayer{(:encoder_input, :decoder_input, :encoder_blocks, :decoder_blocks, :output_layer)}
     encoder_input::TransformerInput
