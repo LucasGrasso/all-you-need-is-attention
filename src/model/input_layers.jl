@@ -7,7 +7,7 @@ using ..PositionalEncoders
 
 export TransformerInput
 
-struct TransformerInput <: Lux.AbstractLuxContainerLayer{(:embedding,)}
+struct TransformerInput <: Lux.AbstractLuxContainerLayer{(:embedding, :pos_enc)}
     embedding::Lux.Embedding
     pos_enc::PositionalEncoding
 end
@@ -21,13 +21,13 @@ end
 
 function (m::TransformerInput)(x::AbstractMatrix{Int}, ps, st)
     emb, st_emb = Lux.apply(m.embedding, x, ps.embedding, st.embedding)
-
+    emb = dropdims(emb, dims=3) 
     d_model = size(emb, 1)
     scaled_emb = emb .* sqrt(Float32(d_model))
+    out, st_pe = m.pos_enc(scaled_emb, ps.pos_enc, st.pos_enc)
+    new_st = (embedding=st_emb, pos_enc=st_pe)
 
-    new_st = (embedding=st_emb,)
-
-    return m.pos_enc(scaled_emb), new_st
+    return out, new_st
 end
 
 end
