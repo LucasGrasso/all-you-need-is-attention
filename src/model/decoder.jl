@@ -25,9 +25,9 @@ function DecoderBlock(d_model::Int, h::Int, d_ff::Int)
         MultiheadAttention(h, d_model, d_v, d_v),  # masked multi-head attention
         MultiheadAttention(h, d_model, d_v, d_v),  # multi-head attention
         FeedForward(d_model, d_ff),
-        LayerNorm((d_model,)),
-        LayerNorm((d_model,)),
-        LayerNorm((d_model,))
+        LayerNorm((d_model,); dims=nothing),
+        LayerNorm((d_model,); dims=nothing),
+        LayerNorm((d_model,); dims=nothing)
     )
 end
 
@@ -35,7 +35,7 @@ function (m::DecoderBlock)((X, K_e, V_e)::Tuple, ps, st)
     n = size(X, 2)  # Sequence length of the target input
 
     # Masked self-attention
-    mask = triu(trues(n, n), 1) |> Lux.get_device(X) # Upper triangular mask to prevent attending to future tokens
+    mask = reshape(triu(trues(n, n), 1), n, n, 1) |> Lux.get_device(X)
     masked_attn_out, st_masked_attn = m.masked_multihead_attention((X, X, X, mask), ps.masked_multihead_attention, st.masked_multihead_attention)
     X, st_n1 = m.norm1(X .+ masked_attn_out, ps.norm1, st.norm1)  # Add & Norm
 

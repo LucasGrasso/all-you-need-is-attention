@@ -13,39 +13,64 @@ function load_tsv(filepath::String)
 end
 
 
+function tokenize(sentence::String)
+    s = lowercase(sentence)
+    s = replace(s, r"([.,!?;:])" => s" \1 ")
+    return split(s)
+end
+
 function build_vocab(sentences::Vector{String})
-    vocab = Dict{String,Int}()
-    vocab["<PAD>"] = 1
-    vocab["<SOS>"] = 2
-    vocab["<EOS>"] = 3
-    vocab["<UNK>"] = 4
+    vocab = Dict{String,Int}("<PAD>" => 1, "<SOS>" => 2, "<EOS>" => 3, "<UNK>" => 4)
 
     for sentence in sentences
-        for word in split(sentence)
+        for word in tokenize(sentence)
             if !haskey(vocab, word)
                 vocab[word] = length(vocab) + 1
             end
         end
     end
-
     return vocab
 end
 
 function encode(vocab::Dict{String,Int}, sentence::String)
-    return [get(vocab, word, vocab["<UNK>"]) for word in split(sentence)]
+    return [get(vocab, String(word), vocab["<UNK>"]) for word in tokenize(sentence)]
 end
 
 function encode_sentence(vocab, sentence, sos_id, eos_id)
     return [sos_id; encode(vocab, sentence); eos_id]
 end
 
-function decode(vocab::Dict{String,Int}, ids::Vector{Int})::String
+function decode(vocab::Dict{String,Int}, ids::AbstractVector{Int})::String
     inv_vocab = Vector{String}(undef, length(vocab))
     for (word, id) in vocab
         inv_vocab[id] = word
     end
-    words = [inv_vocab[id] for id in ids if id > 3]
-    return join(words, " ")
+
+    # We ignore <PAD> (1), <SOS> (2), and <EOS> (3)
+    words = String[]
+    for id in ids
+        if id == 3 # <EOS>
+            break
+        elseif id > 3
+            push!(words, inv_vocab[id])
+        end
+    end
+
+    if isempty(words)
+        return ""
+    end
+
+    sentence = join(words, " ")
+    sentence = replace(sentence, r"\s+([.,!?;:])" => s"\1") # "ciao ." -> "ciao."
+
+    return uppercasefirst(sentence)
+end
+
+function pad_sequence(seq::Vector{Int}, max_len::Int, pad_id::Int)
+    new_seq = fill(pad_id, max_len)
+    len = min(length(seq), max_len)
+    new_seq[1:len] .= seq[1:len]
+    return new_seq
 end
 
 function make_dataset(
@@ -76,4 +101,51 @@ function make_dataset(
 
     println("Loaded $(length(data)) sentence pairs")
     return data
+end
+
+function make_batch_dataset(
+    es_sentences, it_sentences, src_vocab, tgt_vocab;
+    batch_size::Int=32,
+    max_len::Int=64,
+    pad_id::Int=1,
+    sos_id::Int=2,
+    eos_id::Int=3,
+    max_samples::Int=typemax(Int)
+)
+    # 1. Filter and Encode
+    valid_pairs = []
+    for (es, it) in Iterators.take(zip(es_sentences, it_sentences), max_samples)
+        src = encode(src_vocab, es)
+        tgt = encode_sentence(tgt_vocab, it, sos_id, eos_id)
+
+        if length(src) <= max_len && length(tgt) <= max_len
+            push!(valid_pairs, (src, tgt))
+        end
+    end
+
+    # 2. Batching Logic using pad_sequence
+    dataset = []
+    for i in 1:batch_size:length(valid_pairs)
+        upper = min(i + batch_size - 1, length(valid_pairs))
+        batch_range = i:upper
+
+        # Only keep full batches to avoid dimension issues in Attention
+        length(batch_range) < batch_size && continue
+
+        # Initialize matrices (max_len, batch_size)
+        batch_src = Matrix{Int}(undef, max_len, batch_size)
+        batch_tgt = Matrix{Int}(undef, max_len, batch_size)
+
+        for (local_idx, global_idx) in enumerate(batch_range)
+            src_vec, tgt_vec = valid_pairs[global_idx]
+
+            # Use the helper here
+            batch_src[:, local_idx] .= pad_sequence(src_vec, max_len, pad_id)
+            batch_tgt[:, local_idx] .= pad_sequence(tgt_vec, max_len, pad_id)
+        end
+
+        push!(dataset, (batch_src, batch_tgt))
+    end
+
+    return dataset
 end

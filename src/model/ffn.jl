@@ -18,9 +18,14 @@ function FeedForward(d_model::Int, d_ff::Int, activation=relu)
 end
 
 function (m::FeedForward)(X, ps, st)
-    x, st1 = m.layer1(X, ps.layer1, st.layer1)
+    d_model, seq_len, batch_size = size(X)
+    x_flat = reshape(X, d_model, :)
+    x, st1 = m.layer1(x_flat, ps.layer1, st.layer1)
     x, st2 = m.layer2(x, ps.layer2, st.layer2)
-    return x, (layer1=st1, layer2=st2)
+    out = reshape(x, d_model, seq_len, batch_size)
+    new_st = (layer1=st1, layer2=st2)
+
+    return out, new_st
 end
 
 end

@@ -20,12 +20,12 @@ function infer(model, ps, st, src, sos_id::Int, eos_id::Int, max_len::Int)
         logits, _ = Lux.apply(
             model.output_layer, out_dec, ps.output_layer, st.output_layer
         )
-        next_token = argmax(logits[:, end])  # Get the last token's logits
+        next_token = argmax(logits[:, end, 1])  # Get the last token's logits
         next_token == eos_id && break  # Stop if <eos> is predicted
 
-        tgt_seq = hcat(tgt_seq, fill(next_token, 1, 1))
+        tgt_seq = vcat(tgt_seq, fill(Int(next_token), 1, 1))
 
     end
 
-    return vec(tgt_seq[:, 2:end])  # Exclude <sos> token
+    return vec(Array(tgt_seq[2:end, :]))  # Remove <sos> and convert to CPU array
 end

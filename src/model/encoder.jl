@@ -21,8 +21,8 @@ function EncoderBlock(d_model::Int, h::Int, d_ff::Int)
     EncoderBlock(
         MultiheadAttention(h, d_model, d_v, d_v),
         FeedForward(d_model, d_ff),
-        LayerNorm((d_model,)),
-        LayerNorm((d_model,))
+        LayerNorm((d_model,); dims=nothing),
+        LayerNorm((d_model,); dims=nothing)
     )
 end
 

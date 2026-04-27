@@ -10,27 +10,27 @@ using CUDA, LuxCUDA
 
 es_sentences, it_sentences = load_tsv(joinpath(@__DIR__, "es-it.tsv"))
 
-es_vocab = build_vocab(es_sentences)   # Spanish only
-it_vocab = build_vocab(it_sentences)   # Italian only
+es_vocab = build_vocab(es_sentences)
+it_vocab = build_vocab(it_sentences)
 
 src_vocab_size = length(es_vocab)
 tgt_vocab_size = length(it_vocab)
-
-println("Spanish vocab size: $src_vocab_size")
-println("Italian vocab size: $tgt_vocab_size")
 
 pad_id = 1
 sos_id = 2
 eos_id = 3
 
-data = make_dataset(
+data = make_batch_dataset(
     es_sentences, it_sentences,
     es_vocab, it_vocab;
+    batch_size=32,      # Choose a size your GPU can handle (16, 32, 64)
     max_len=64,
+    pad_id=pad_id,      # Critical for the loss_fn to ignore padding
     sos_id=sos_id,
     eos_id=eos_id,
-    max_samples=5000
 )
+
+println("Loaded $(length(data)) batches.")
 
 # ── MODEL ──────────────────────────────────────────────
 
