@@ -42,8 +42,6 @@ while (true)
         input_ids = input_ids |> device
     end
 
-
-
     output_ids = infer(model, ps, st, input_ids, sos_id, eos_id, max_len)
     output_sentence = decode(it_vocab, output_ids)
 

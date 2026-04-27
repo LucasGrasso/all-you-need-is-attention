@@ -40,8 +40,12 @@ function encode_sentence(vocab, sentence, sos_id, eos_id)
 end
 
 function decode(vocab::Dict{String,Int}, ids::Vector{Int})::String
-    inv_vocab = Dict(v => k for (k, v) in vocab)
-    return join([get(inv_vocab, id, "<UNK>") for id in ids], " ")
+    inv_vocab = Vector{String}(undef, length(vocab))
+    for (word, id) in vocab
+        inv_vocab[id] = word
+    end
+    words = [inv_vocab[id] for id in ids if id > 3]
+    return join(words, " ")
 end
 
 function make_dataset(
