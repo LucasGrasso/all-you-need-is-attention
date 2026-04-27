@@ -18,10 +18,10 @@ struct Transformer <: Lux.AbstractLuxContainerLayer{(:encoder_input, :decoder_in
     output_layer::TransformerOutput
 end
 
-function Transformer(vocab_size::Int, d_model::Int, max_len::Int, num_layers::Int, h::Int, d_ff::Int)
+function Transformer(src_vocab_size::Int, tgt_vocab_size::Int, d_model::Int, max_len::Int, num_layers::Int, h::Int, d_ff::Int)
     return Transformer(
-        TransformerInput(vocab_size, d_model, max_len),
-        TransformerInput(vocab_size, d_model, max_len),
+        TransformerInput(src_vocab_size, d_model, max_len),
+        TransformerInput(tgt_vocab_size, d_model, max_len),
         Lux.Chain([EncoderBlock(d_model, h, d_ff) for _ in 1:num_layers]...),
         Lux.Chain([DecoderBlock(d_model, h, d_ff) for _ in 1:num_layers]...),
         TransformerOutput(d_model, vocab_size)
