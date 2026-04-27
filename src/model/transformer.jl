@@ -24,7 +24,7 @@ function Transformer(src_vocab_size::Int, tgt_vocab_size::Int, d_model::Int, max
         TransformerInput(tgt_vocab_size, d_model, max_len),
         Lux.Chain([EncoderBlock(d_model, h, d_ff) for _ in 1:num_layers]...),
         Lux.Chain([DecoderBlock(d_model, h, d_ff) for _ in 1:num_layers]...),
-        TransformerOutput(d_model, vocab_size)
+        TransformerOutput(d_model, tgt_vocab_size)
     )
 end
 
