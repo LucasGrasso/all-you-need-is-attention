@@ -14,9 +14,8 @@ end
 
 function (m::TransformerOutput)(x::AbstractMatrix, ps, st)
     logits, st_proj = Lux.apply(m.projection, x, ps.projection, st.projection)
-    prob = softmax(logits; dims=1) # Apply softmax along the vocab dimension
     new_st = (projection=st_proj,)
-    return prob, new_st
+    return logits, new_st
 end
 
 end

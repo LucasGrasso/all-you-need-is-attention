@@ -1,6 +1,6 @@
 include("./transformer.jl")
 
-function infer(model::AttTransformer.Transformer, ps, st, src, sos_id::Int, eos_id::Int, max_len::Int)
+function infer(model, ps, st, src, sos_id::Int, eos_id::Int, max_len::Int)
     src_enc, _ = Lux.apply(
         model.encoder_input, src, ps.encoder_input, st.encoder_input
     )

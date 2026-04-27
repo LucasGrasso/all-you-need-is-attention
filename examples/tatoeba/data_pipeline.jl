@@ -14,7 +14,7 @@ end
 
 
 function build_vocab(sentences::Vector{String})
-    vocab = Dict{String, Int}()
+    vocab = Dict{String,Int}()
     vocab["<PAD>"] = 1
     vocab["<SOS>"] = 2
     vocab["<EOS>"] = 3
@@ -39,17 +39,22 @@ function encode_sentence(vocab, sentence, sos_id, eos_id)
     return [sos_id; encode(vocab, sentence); eos_id]
 end
 
+function decode(vocab::Dict{String,Int}, ids::Vector{Int})::String
+    inv_vocab = Dict(v => k for (k, v) in vocab)
+    return join([get(inv_vocab, id, "<UNK>") for id in ids], " ")
+end
+
 function make_dataset(
-    es_sentences :: Vector{String},
-    it_sentences :: Vector{String},
-    src_vocab    :: Dict{String,Int},
-    tgt_vocab    :: Dict{String,Int};
-    max_len      :: Int = 64,
-    sos_id       :: Int = 2,
-    eos_id       :: Int = 3,
-    max_samples  :: Int = typemax(Int)
+    es_sentences::Vector{String},
+    it_sentences::Vector{String},
+    src_vocab::Dict{String,Int},
+    tgt_vocab::Dict{String,Int};
+    max_len::Int=64,
+    sos_id::Int=2,
+    eos_id::Int=3,
+    max_samples::Int=typemax(Int)
 )
-    data = []
+    data = Vector{Tuple{Matrix{Int},Matrix{Int}}}()
 
     for (es, it) in Iterators.take(zip(es_sentences, it_sentences), max_samples)
         src = encode(src_vocab, es)
@@ -57,10 +62,12 @@ function make_dataset(
 
         (length(src) > max_len || length(tgt) > max_len) && continue
 
-        src = reshape(src, 1, :)
-        tgt = reshape(tgt, 1, :)
+        # FIX: Reshape to (Sequence, Batch) 
+        # Before: (1, seq) -> After: (seq, 1)
+        src_mat = reshape(src, :, 1)
+        tgt_mat = reshape(tgt, :, 1)
 
-        push!(data, (src, tgt))
+        push!(data, (src_mat, tgt_mat))
     end
 
     println("Loaded $(length(data)) sentence pairs")
