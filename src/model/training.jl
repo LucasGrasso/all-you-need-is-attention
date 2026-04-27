@@ -23,6 +23,7 @@ function train!(model::AttTransformer.Transformer, ps, st, data; epochs=10, lr=1
     losses    = Float32[] 
 
     for epoch in 1:epochs
+        println("Epoch $epoch/$epochs")
         total_loss = 0.0
         for (src, tgt) in data
             (loss, new_st), grads = Zygote.withgradient(ps) do ps
