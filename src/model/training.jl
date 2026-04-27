@@ -20,6 +20,7 @@ end
 function train!(model::AttTransformer.Transformer, ps, st, data; epochs=10, lr=1e-3, eps=1f-7, rng=Random.default_rng(), pad_id=0)
     opt = Optimisers.Adam(lr)
     opt_state = Optimisers.setup(opt, ps)
+    losses    = Float32[] 
 
     for epoch in 1:epochs
         total_loss = 0.0
@@ -32,8 +33,10 @@ function train!(model::AttTransformer.Transformer, ps, st, data; epochs=10, lr=1
             st = new_st  # Update state if needed (for stateful layers)
             total_loss += loss
         end
-        println("Epoch $epoch, Loss: $(total_loss / length(data))")
+        epoch_loss = total_loss / length(data)
+        losses = push!(losses, epoch_loss)
+        println("Epoch $epoch, Loss: $epoch_loss")
     end
 
-    return ps, st
+    return ps, st, losses
 end
