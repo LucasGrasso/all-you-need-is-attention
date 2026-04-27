@@ -43,6 +43,7 @@ while (true)
     end
 
     output_ids = infer(model, ps, st, input_ids, sos_id, eos_id, max_len)
+    output_ids = cpu(output_ids)  # Move back to CPU for decoding
     output_sentence = decode(it_vocab, output_ids)
 
     println("Translated to Italian: $output_sentence")

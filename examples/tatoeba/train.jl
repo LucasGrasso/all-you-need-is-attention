@@ -41,7 +41,7 @@ config = (
     max_len=64,
     num_layers=2,
     h=4,
-    d_ff=512
+    d_ff=206
 )
 
 model = AttTransformer.Transformer(
