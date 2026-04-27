@@ -17,7 +17,7 @@ function loss_fn(model, ps, st, src, tgt, pad_id, eps=1f-7)
     return loss, new_st
 end
 
-function train!(model::AttTransformer.Transformer, ps, st, data; epochs=10, lr=1e-3, eps=1f-7, rng=Random.default_rng(), pad_id=0)
+function train!(model, ps, st, data; epochs=10, lr=1e-3, eps=1f-7, rng=Random.default_rng(), pad_id=0)
     opt = Optimisers.Adam(lr)
     opt_state = Optimisers.setup(opt, ps)
     losses    = Float32[] 
@@ -35,7 +35,7 @@ function train!(model::AttTransformer.Transformer, ps, st, data; epochs=10, lr=1
             total_loss += loss
         end
         epoch_loss = total_loss / length(data)
-        losses = push!(losses, epoch_loss)
+        push!(losses, epoch_loss)
         println("Epoch $epoch, Loss: $epoch_loss")
     end
 
