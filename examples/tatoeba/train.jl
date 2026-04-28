@@ -23,13 +23,14 @@ eos_id = 3
 data = make_batch_dataset(
     es_sentences, it_sentences,
     es_vocab, it_vocab;
-    batch_size=32,      # Choose a size your GPU can handle (16, 32, 64)
+    batch_size=16,      # Choose a size your GPU can handle (16, 32, 64)
     max_len=64,
     pad_id=pad_id,      # Critical for the loss_fn to ignore padding
     sos_id=sos_id,
     eos_id=eos_id,
 )
 
+println("Vocabulary sizes - Source (ES): $src_vocab_size, Target (IT): $tgt_vocab_size")
 println("Loaded $(length(data)) batches.")
 
 # ── MODEL ──────────────────────────────────────────────

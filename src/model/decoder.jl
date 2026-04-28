@@ -1,11 +1,13 @@
 include("./attention.jl")
 include("./ffn.jl")
+include("./layer_norm_1d.jl")
 
 module Decoder
 
 using Lux
 using LinearAlgebra
 using ..Attention
+using ..LayerNorm1D
 using ..FFN
 
 export DecoderBlock
@@ -14,9 +16,9 @@ struct DecoderBlock <: Lux.AbstractLuxContainerLayer{(:masked_multihead_attentio
     masked_multihead_attention::MultiheadAttention
     multihead_attention::MultiheadAttention
     ffn::FeedForward
-    norm1::LayerNorm
-    norm2::LayerNorm
-    norm3::LayerNorm
+    norm1::LayerNorm1DLayer
+    norm2::LayerNorm1DLayer
+    norm3::LayerNorm1DLayer
 end
 
 function DecoderBlock(d_model::Int, h::Int, d_ff::Int)
@@ -25,22 +27,26 @@ function DecoderBlock(d_model::Int, h::Int, d_ff::Int)
         MultiheadAttention(h, d_model, d_v, d_v),  # masked multi-head attention
         MultiheadAttention(h, d_model, d_v, d_v),  # multi-head attention
         FeedForward(d_model, d_ff),
-        LayerNorm((d_model,); dims=nothing),
-        LayerNorm((d_model,); dims=nothing),
-        LayerNorm((d_model,); dims=nothing)
+        LayerNorm1DLayer(d_model),
+        LayerNorm1DLayer(d_model),
+        LayerNorm1DLayer(d_model),
     )
 end
 
-function (m::DecoderBlock)((X, K_e, V_e)::Tuple, ps, st)
+function (m::DecoderBlock)((X, K_e, V_e, tgt_mask, src_mask)::Tuple, ps, st)
     n = size(X, 2)  # Sequence length of the target input
+    dev = Lux.get_device(X)
 
-    # Masked self-attention
-    mask = reshape(triu(trues(n, n), 1), n, n, 1) |> Lux.get_device(X)
-    masked_attn_out, st_masked_attn = m.masked_multihead_attention((X, X, X, mask), ps.masked_multihead_attention, st.masked_multihead_attention)
+    causal_mask_raw = dev(collect(triu(ones(Float32, n, n), 1) .> 0.5))
+    causal_mask = reshape(causal_mask_raw, n, n, 1) # (63, 63, 1)
+    current_tgt_mask = tgt_mask[:, 1:n, :]
+    total_mask = causal_mask .| current_tgt_mask
+
+    masked_attn_out, st_masked_attn = m.masked_multihead_attention((X, X, X, total_mask), ps.masked_multihead_attention, st.masked_multihead_attention)
     X, st_n1 = m.norm1(X .+ masked_attn_out, ps.norm1, st.norm1)  # Add & Norm
 
     # Encoder-decoder attention
-    enc_dec_attn_out, st_attn = m.multihead_attention((X, K_e, V_e), ps.multihead_attention, st.multihead_attention)
+    enc_dec_attn_out, st_attn = m.multihead_attention((X, K_e, V_e, src_mask), ps.multihead_attention, st.multihead_attention)
     X, st_n2 = m.norm2(X .+ enc_dec_attn_out, ps.norm2, st.norm2)  # Add & Norm
 
     # Feed-forward
@@ -57,7 +63,7 @@ function (m::DecoderBlock)((X, K_e, V_e)::Tuple, ps, st)
     )
 
     # We return the updated target representation (X) along with the encoder's K and V for the next decoder block
-    return (X, K_e, V_e), new_st
+    return (X, K_e, V_e, current_tgt_mask, src_mask), new_st
 end
 
 end

@@ -12,7 +12,6 @@ function load_tsv(filepath::String)
     return es_sentences, it_sentences
 end
 
-
 function tokenize(sentence::String)
     s = lowercase(sentence)
     s = replace(s, r"([.,!?;:])" => s" \1 ")
@@ -113,9 +112,10 @@ function make_batch_dataset(
     max_samples::Int=typemax(Int)
 )
     # 1. Filter and Encode
+    # We use encode_sentence for both to ensure <SOS> and <EOS> are present
     valid_pairs = []
     for (es, it) in Iterators.take(zip(es_sentences, it_sentences), max_samples)
-        src = encode(src_vocab, es)
+        src = encode_sentence(src_vocab, es, sos_id, eos_id)
         tgt = encode_sentence(tgt_vocab, it, sos_id, eos_id)
 
         if length(src) <= max_len && length(tgt) <= max_len
@@ -123,29 +123,37 @@ function make_batch_dataset(
         end
     end
 
-    # 2. Batching Logic using pad_sequence
+    # 2. Shuffle data 
+    # Critical so the model doesn't learn based on the order of the TSV
+    Random.shuffle!(valid_pairs)
+
+    # 3. Batching Logic
     dataset = []
-    for i in 1:batch_size:length(valid_pairs)
-        upper = min(i + batch_size - 1, length(valid_pairs))
-        batch_range = i:upper
+    n_total = length(valid_pairs)
+    n_batches = div(n_total, batch_size)
 
-        # Only keep full batches to avoid dimension issues in Attention
-        length(batch_range) < batch_size && continue
+    for b in 0:(n_batches-1)
+        start_idx = b * batch_size + 1
 
-        # Initialize matrices (max_len, batch_size)
-        batch_src = Matrix{Int}(undef, max_len, batch_size)
-        batch_tgt = Matrix{Int}(undef, max_len, batch_size)
+        # Pre-allocate matrices (SequenceLength, BatchSize)
+        # Using Int64 ensures no conversion overhead on GPU embeddings
+        batch_src = Matrix{Int64}(undef, max_len, batch_size)
+        batch_tgt = Matrix{Int64}(undef, max_len, batch_size)
 
-        for (local_idx, global_idx) in enumerate(batch_range)
+        for local_idx in 1:batch_size
+            global_idx = start_idx + local_idx - 1
             src_vec, tgt_vec = valid_pairs[global_idx]
 
-            # Use the helper here
+            # Use your existing pad_sequence helper
             batch_src[:, local_idx] .= pad_sequence(src_vec, max_len, pad_id)
             batch_tgt[:, local_idx] .= pad_sequence(tgt_vec, max_len, pad_id)
         end
 
         push!(dataset, (batch_src, batch_tgt))
     end
+
+    println("Total valid pairs: $n_total")
+    println("Created $n_batches batches of size $batch_size")
 
     return dataset
 end
