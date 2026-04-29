@@ -1,23 +1,16 @@
 include("./transformer.jl")
 
-using Lux, Zygote, Optimisers, Random, NNlib, Statistics
+using Lux, Zygote, Optimisers, Random, NNlib, Statistics, ProgressMeter
 
-function loss_fn(model, ps, st, src, tgt, pad_id, eps=1f-7)
+function loss_fn(model, ps, st, src, tgt)
     tgt_in = tgt[1:end-1, :]
     tgt_out = tgt[2:end, :]
 
     logits, new_st = Lux.apply(model, (src, tgt_in), ps, st)
 
     logits_flat = reshape(logits, size(logits, 1), :)
-    targets_flat = vec(tgt_out)
-
-    pad_mask = targets_flat .!= pad_id
-    if !any(pad_mask)
-        return 0f0, new_st
-    end
-
-    y_hat = logits_flat[:, pad_mask]
-    y = targets_flat[pad_mask]
+    y = vec(tgt_out)
+    y_hat = logits_flat
 
     lse = logsumexp(y_hat; dims=1)
     vocab_size = size(y_hat, 1)
@@ -31,23 +24,28 @@ function loss_fn(model, ps, st, src, tgt, pad_id, eps=1f-7)
     return loss, new_st
 end
 
-function train!(model, ps, st, data; epochs=10, lr=1e-3, eps=1f-7, rng=Random.default_rng(), pad_id=1)
+function train!(model, ps, st, data; epochs=10, lr=1e-3, rng=Random.default_rng())
     opt = Optimisers.Adam(lr)
     opt_state = Optimisers.setup(opt, ps)
     losses = Float32[]
     n_samples = length(data)
+    epoch_data = collect(data)
 
     for epoch in 1:epochs
         println("Epoch $epoch/$epochs")
-        total_loss = 0.0
-        for (src, tgt) in data
+        Random.shuffle!(rng, epoch_data)
+        total_loss = 0f0
+        pbar = Progress(n_samples; desc="epoch $epoch/$epochs")
+        for (src, tgt) in epoch_data
             (loss, new_st), grads = Zygote.withgradient(ps) do ps
-                loss_fn(model, ps, st, src, tgt, pad_id, eps)
+                loss_fn(model, ps, st, src, tgt)
             end
             opt_state, ps = Optimisers.update!(opt_state, ps, grads[1])
             st = new_st
             total_loss += loss
+            next!(pbar; showvalues=[(:loss, round(loss; digits=4))])
         end
+        finish!(pbar)
         epoch_loss = total_loss / n_samples
         push!(losses, epoch_loss)
         println("Epoch $epoch, Loss: $epoch_loss")

@@ -19,7 +19,6 @@ tgt_vocab_size = length(it_vocab)
 println("Spanish vocab size: $src_vocab_size")
 println("Italian vocab size: $tgt_vocab_size")
 
-pad_id = 1
 sos_id = 2
 eos_id = 3
 
@@ -39,9 +38,9 @@ config = (
     tgt_vocab_size=tgt_vocab_size,
     d_model=128,
     max_len=64,
-    num_layers=2,
+    num_layers=4,
     h=4,
-    d_ff=206
+    d_ff=512
 )
 
 model = AttTransformer.Transformer(
@@ -71,7 +70,7 @@ end
 
 # ── TRAINING ───────────────────────────────────────────
 
-ps, st, losses = train!(model, ps, st, data; epochs=20, lr=1e-3, rng=rng, pad_id=pad_id)
+ps, st, losses = train!(model, ps, st, data; epochs=20, lr=1e-3, rng=rng)
 plot(losses, xlabel="Epoch", ylabel="Loss", title="Training Loss")
 savefig(joinpath(@__DIR__, "loss_curve.png"))
 

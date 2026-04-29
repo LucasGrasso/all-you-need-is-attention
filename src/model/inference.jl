@@ -9,7 +9,7 @@ function infer(model, ps, st, src, sos_id::Int, eos_id::Int, max_len::Int)
     )
 
     # Start with <sos> token
-    tgt_seq = fill(sos_id, 1, 1)  # (1, 1)
+    tgt_seq = fill(sos_id, 1, 1)  # (seq_len=1, batch=1)
     for _ in 1:max_len
         tgt_enc, _ = Lux.apply(
             model.decoder_input, tgt_seq, ps.decoder_input, st.decoder_input
@@ -23,7 +23,7 @@ function infer(model, ps, st, src, sos_id::Int, eos_id::Int, max_len::Int)
         next_token = argmax(logits[:, end])  # Get the last token's logits
         next_token == eos_id && break  # Stop if <eos> is predicted
 
-        tgt_seq = hcat(tgt_seq, fill(next_token, 1, 1))
+        tgt_seq = vcat(tgt_seq, fill(next_token, 1, 1))
 
     end
 

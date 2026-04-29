@@ -18,11 +18,12 @@ Lux.initialstates(::AbstractRNG, ::MultiheadAttention) = (;)  # stateless
 
 function Lux.initialparameters(rng::AbstractRNG, m::MultiheadAttention)
     T = Float32
+    scale = inv(sqrt(T(m.d_model)))
     (
-        WQ=randn(rng, T, m.d_model, m.d_model),
-        WK=randn(rng, T, m.d_model, m.d_model),
-        WV=randn(rng, T, m.d_model, m.d_model),
-        WO=randn(rng, T, m.d_model, m.d_model),
+        WQ=randn(rng, T, m.d_model, m.d_model) .* scale,
+        WK=randn(rng, T, m.d_model, m.d_model) .* scale,
+        WV=randn(rng, T, m.d_model, m.d_model) .* scale,
+        WO=randn(rng, T, m.d_model, m.d_model) .* scale,
     )
 end
 

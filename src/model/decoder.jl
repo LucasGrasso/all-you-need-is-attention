@@ -20,6 +20,7 @@ struct DecoderBlock <: Lux.AbstractLuxContainerLayer{(:masked_multihead_attentio
 end
 
 function DecoderBlock(d_model::Int, h::Int, d_ff::Int)
+    d_model % h == 0 || throw(ArgumentError("d_model must be divisible by h"))
     d_v = div(d_model, h)
     DecoderBlock(
         MultiheadAttention(h, d_model, d_v, d_v),  # masked multi-head attention
