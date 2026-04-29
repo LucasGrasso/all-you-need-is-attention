@@ -13,40 +13,62 @@ function load_tsv(filepath::String)
 end
 
 
+
+function tokenize(sentence::String)
+    s = lowercase(sentence)
+    s = replace(s, r"([.,!?;:])" => s" \1 ")
+    return split(s)
+end
+
 function build_vocab(sentences::Vector{String})
-    vocab = Dict{String,Int}()
-    vocab["<PAD>"] = 1
-    vocab["<SOS>"] = 2
-    vocab["<EOS>"] = 3
-    vocab["<UNK>"] = 4
+    vocab = Dict{String,Int}("<PAD>" => 1, "<SOS>" => 2, "<EOS>" => 3, "<UNK>" => 4)
 
     for sentence in sentences
-        for word in split(sentence)
+        for word in tokenize(sentence)
             if !haskey(vocab, word)
                 vocab[word] = length(vocab) + 1
             end
         end
     end
-
     return vocab
 end
 
 function encode(vocab::Dict{String,Int}, sentence::String)
-    return [get(vocab, word, vocab["<UNK>"]) for word in split(sentence)]
+    return [get(vocab, word, vocab["<UNK>"]) for word in tokenize(sentence)]
 end
 
 function encode_sentence(vocab, sentence, sos_id, eos_id)
     return [sos_id; encode(vocab, sentence); eos_id]
 end
 
-function decode(vocab::Dict{String,Int}, ids::Vector{Int})::String
+
+function decode(vocab::Dict{String,Int}, ids::AbstractVector{Int})::String
     inv_vocab = Vector{String}(undef, length(vocab))
     for (word, id) in vocab
         inv_vocab[id] = word
     end
-    words = [inv_vocab[id] for id in ids if id > 3]
-    return join(words, " ")
+
+    # We ignore <PAD> (1), <SOS> (2), and <EOS> (3)
+    words = String[]
+    for id in ids
+        if id == 3 # <EOS>
+            break
+        elseif id > 3
+            push!(words, inv_vocab[id])
+        end
+    end
+
+    if isempty(words)
+        return ""
+    end
+
+    sentence = join(words, " ")
+    sentence = replace(sentence, r"\s+([.,!?;:])" => s"\1") # "ciao ." -> "ciao."
+
+    return uppercasefirst(sentence)
 end
+
+
 
 function make_dataset(
     es_sentences::Vector{String},
