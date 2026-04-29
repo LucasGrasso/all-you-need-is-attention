@@ -12,18 +12,19 @@ function loss_fn(model, ps, st, src, tgt, pad_id)
 
     V = size(logits, 1)
     logits_flat = reshape(logits, V, :)
-    targets_vec = vec(tgt_out)  # (N,) where N = (T-1)*B
-    targets_oh = onehotbatch(targets_vec, 1:V)
+    targets_vec = vec(tgt_out)
+    mask = targets_vec .!= pad_id  # BitVector
 
-    all_losses = Lux.CrossEntropyLoss(; agg=nothing, logits=Val(true))(logits_flat, targets_oh)
+    logits_flat = reshape(logits, V, :)
+    logits_valid = logits_flat[:, mask]
+    targets_valid = targets_vec[mask]
 
-    mask = targets_vec .!= pad_id                      # (N,) — ignora <PAD>
-    loss = sum(all_losses .* mask) / (sum(mask) + 1f-7)
+    targets_oh = onehotbatch(targets_valid, 1:V)
 
+    loss = Lux.CrossEntropyLoss(; logits=Val(true))(logits_valid, targets_oh)
 
     return loss, new_st
 end
-
 
 function train!(model, ps, st, data; epochs=10, lr=1e-3, rng=Random.default_rng(), pad_id=1)
     opt = Optimisers.Adam(lr)

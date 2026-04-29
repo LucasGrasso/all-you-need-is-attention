@@ -37,8 +37,9 @@ function (m::DecoderBlock)((X, K_e, V_e, tgt_mask, src_mask)::Tuple, ps, st)
     n = size(X, 2)  # Sequence length of the target input
     dev = Lux.get_device(X)
 
-    causal_mask_raw = dev(collect(triu(ones(Float32, n, n), 1) .> 0.5))
-    causal_mask = reshape(causal_mask_raw, n, n, 1) # (63, 63, 1)
+    causal_mask = dev(triu(ones(Bool, n, n), 1))
+    causal_mask = reshape(causal_mask, n, n, 1)
+
     current_tgt_mask = tgt_mask[:, 1:n, :]
     total_mask = causal_mask .| current_tgt_mask
 

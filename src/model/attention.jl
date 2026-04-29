@@ -75,32 +75,40 @@ function multihead_attention(
 
     # Apply mask if provided
     if mask !== nothing
-        m_h = repeat(mask, inner=(1, 1, m.h)) # Result: (1, src_len, h * batch_size)
+        q_len, k_len, _ = size(scores)
 
-        scores = scores .+ ifelse.(m_h, T(-Inf), T(0))
+
+        m_rows = min(size(mask, 1), q_len)
+        m_cols = min(size(mask, 2), k_len)
+
+        m_curr = mask[1:m_rows, 1:m_cols, :]
+
+        m_h = reshape(m_curr, m_rows, m_cols, 1, batch_size)
+        m_h = repeat(m_h, outer=(div(q_len, m_rows), div(k_len, m_cols), m.h, 1))
+        m_h_flat = reshape(m_h, q_len, k_len, :)
+
+        scores = scores .+ ifelse.(m_h_flat, T(-1f9), T(0))
     end
 
     weights = softmax(scores, dims=2)
 
+    # Prepare V_final: (src_len, d_v, total_heads)
+    # We want V to be (src_len, d_v) so we can do (seq, src) * (src, d_v)
     V_h = reshape(V_proj, m.d_v, m.h, src_len, batch_size)
-    V_h = permutedims(V_h, (1, 3, 2, 4))
-    V_final = reshape(V_h, m.d_v, src_len, :)
+    V_h = permutedims(V_h, (3, 1, 2, 4)) # (src_len, d_v, h, batch)
+    V_final = reshape(V_h, src_len, m.d_v, :) # (src_len, d_v, total_heads)
 
-    # weights_adj: (src_len, seq_len, h * batch_size)
-    weights_adj = permutedims(weights, (2, 1, 3))
+    # Multiply: (seq, src) * (src, d_v) -> (seq, d_v)
+    # This is the standard Transformer Attention formula
+    heads = batched_mul(weights, V_final) # (seq_len, d_v, total_heads)
 
-    # heads: (d_v, seq_len, h * batch_size)
-    heads = batched_mul(V_final, weights_adj)
+    # Reshape back: (d_v, seq_len, h, batch_size)
+    # Note: seq_len and d_v are now dims 1 and 2, so we permute
+    heads_4d = reshape(heads, seq_len, m.d_v, m.h, batch_size)
+    concat = permutedims(heads_4d, (2, 3, 1, 4)) # (d_v, h, seq_len, batch)
 
-    # Bring back to 4D to isolate heads: (d_v, seq_len, h, batch_size)
-    heads = reshape(heads, m.d_v, seq_len, m.h, batch_size)
-
-    # Permute to get d_v and h back together: (d_v, h, seq_len, batch_size)
-    concat = permutedims(heads, (1, 3, 2, 4))
-
+    # Final Projection
     concat_flat = reshape(concat, m.d_model, seq_len, batch_size)
-
-
     out = reshape(WO * reshape(concat_flat, m.d_model, :), m.d_model, seq_len, batch_size)
 
     return out
