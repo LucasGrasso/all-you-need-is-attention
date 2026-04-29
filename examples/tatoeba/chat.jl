@@ -35,14 +35,15 @@ while (true)
     input_sentence = readline()
     input_sentence == "exit" && break
 
-    input_ids = encode_sentence(es_vocab, input_sentence, sos_id, eos_id)
+    # Use raw encoding (no SOS/EOS) to match training distribution
+    input_ids = encode(es_vocab, input_sentence)
     input_ids = reshape(input_ids, :, 1)  # (seq_len, 1)
 
     if CUDA.has_cuda()
         input_ids = input_ids |> device
     end
 
-    output_ids = infer(model, ps, st, input_ids, sos_id, eos_id, max_len)
+    output_ids = infer(model, ps, st, input_ids, sos_id, eos_id, max_len; debug=false)
     output_sentence = decode(it_vocab, output_ids)
 
     println("Translated to Italian: $output_sentence")
