@@ -2,11 +2,15 @@ include("./transformer.jl")
 
 using Lux, Zygote, Optimisers, Random, NNlib, Statistics, ProgressMeter
 
-function loss_fn(model, ps, st, src, tgt)
+function loss_fn(model, ps, st, src, tgt, src_padding_mask, tgt_padding_mask)
     tgt_in = tgt[1:end-1, :]
     tgt_out = tgt[2:end, :]
+    tgt_in_padding_mask = tgt_padding_mask[1:end-1, :]
+    tgt_out_padding_mask = tgt_padding_mask[2:end, :]
 
-    logits, new_st = Lux.apply(model, (src, tgt_in), ps, st)
+    logits, new_st = Lux.apply(
+        model, (src, tgt_in, src_padding_mask, tgt_in_padding_mask), ps, st
+    )
 
     logits_flat = reshape(logits, size(logits, 1), :)
     y = vec(tgt_out)
@@ -19,7 +23,9 @@ function loss_fn(model, ps, st, src, tgt)
     offsets = (0:len-1)
     indices = y .+ (offsets .* vocab_size)
 
-    loss = mean(vec(lse) .- y_hat[indices])
+    token_losses = vec(lse) .- y_hat[indices]
+    valid_tokens = .!vec(tgt_out_padding_mask)
+    loss = mean(token_losses[valid_tokens])
 
     return loss, new_st
 end
@@ -36,9 +42,9 @@ function train!(model, ps, st, data; epochs=10, lr=1e-3, rng=Random.default_rng(
         Random.shuffle!(rng, epoch_data)
         total_loss = 0f0
         pbar = Progress(n_samples; desc="epoch $epoch/$epochs")
-        for (src, tgt) in epoch_data
+        for (src, tgt, src_padding_mask, tgt_padding_mask) in epoch_data
             (loss, new_st), grads = Zygote.withgradient(ps) do ps
-                loss_fn(model, ps, st, src, tgt)
+                loss_fn(model, ps, st, src, tgt, src_padding_mask, tgt_padding_mask)
             end
             opt_state, ps = Optimisers.update!(opt_state, ps, grads[1])
             st = new_st

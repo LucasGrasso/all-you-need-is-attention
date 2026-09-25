@@ -9,6 +9,13 @@ using ..FFN
 
 export EncoderBlock
 
+"""Apply Lux's 2-D LayerNorm independently to every sequence position and batch item."""
+function layer_norm_3d(layer, x, ps, st)
+    x_shape = size(x)
+    normalized, new_st = layer(reshape(x, x_shape[1], :), ps, st)
+    return reshape(normalized, x_shape), new_st
+end
+
 struct EncoderBlock <: Lux.AbstractLuxContainerLayer{(:multihead_attention, :ffn, :norm1, :norm2)}
     multihead_attention::MultiheadAttention
     ffn::FeedForward
@@ -27,14 +34,18 @@ function EncoderBlock(d_model::Int, h::Int, d_ff::Int)
     )
 end
 
-function (m::EncoderBlock)(X, ps, st)
+function (m::EncoderBlock)((X, padding_mask)::Tuple, ps, st)
+    _, seq_len, batch_size = size(X)
+    size(padding_mask) == (seq_len, batch_size) || throw(DimensionMismatch("encoder padding mask must have shape (sequence, batch)"))
+    key_mask = reshape(padding_mask, 1, seq_len, 1, batch_size)
+
     # Self-attention
-    attn_out, st_attn = m.multihead_attention((X, X, X), ps.multihead_attention, st.multihead_attention)
-    X, st_n1 = m.norm1(X .+ attn_out, ps.norm1, st.norm1)  # Add & Norm
+    attn_out, st_attn = m.multihead_attention((X, X, X, key_mask), ps.multihead_attention, st.multihead_attention)
+    X, st_n1 = layer_norm_3d(m.norm1, X .+ attn_out, ps.norm1, st.norm1)  # Add & Norm
 
     # Feed-forward
     ffn_out, st_ffn = m.ffn(X, ps.ffn, st.ffn)
-    X, st_n2 = m.norm2(X .+ ffn_out, ps.norm2, st.norm2)  # Add & Norm
+    X, st_n2 = layer_norm_3d(m.norm2, X .+ ffn_out, ps.norm2, st.norm2)  # Add & Norm
 
     new_st = (
         multihead_attention=st_attn,
@@ -43,7 +54,7 @@ function (m::EncoderBlock)(X, ps, st)
         norm2=st_n2,
     )
 
-    return X, new_st
+    return (X, padding_mask), new_st
 end
 
 end

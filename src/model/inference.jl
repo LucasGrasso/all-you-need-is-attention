@@ -3,11 +3,12 @@ include("./transformer.jl")
 using Lux
 
 function infer(model, ps, st, src, sos_id::Int, eos_id::Int, max_len::Int; debug=false)
+    src_padding_mask = fill!(similar(src, Bool, size(src)), false)
     src_enc, _ = Lux.apply(
         model.encoder_input, src, ps.encoder_input, st.encoder_input
     )
-    memory, _ = Lux.apply(
-        model.encoder_blocks, src_enc, ps.encoder_blocks, st.encoder_blocks
+    (memory, _), _ = Lux.apply(
+        model.encoder_blocks, (src_enc, src_padding_mask), ps.encoder_blocks, st.encoder_blocks
     )
 
     # Start with <sos> token
@@ -18,8 +19,12 @@ function infer(model, ps, st, src, sos_id::Int, eos_id::Int, max_len::Int; debug
         tgt_enc, _ = Lux.apply(
             model.decoder_input, tgt_seq, ps.decoder_input, st.decoder_input
         )
-        (out_dec, _, _), _ = Lux.apply(
-            model.decoder_blocks, (tgt_enc, memory, memory), ps.decoder_blocks, st.decoder_blocks
+        tgt_padding_mask = fill!(similar(tgt_seq, Bool, size(tgt_seq)), false)
+        (out_dec, _, _, _, _), _ = Lux.apply(
+            model.decoder_blocks,
+            (tgt_enc, tgt_padding_mask, memory, memory, src_padding_mask),
+            ps.decoder_blocks,
+            st.decoder_blocks,
         )
         logits, _ = Lux.apply(
             model.output_layer, out_dec, ps.output_layer, st.output_layer

@@ -22,13 +22,10 @@ end
 function (m::TransformerInput)(x::AbstractMatrix{Int}, ps, st)
     emb, st_emb = Lux.apply(m.embedding, x, ps.embedding, st.embedding)
 
-    # collapse whatever shape Lux.Embedding returns → d_model × seq_len
-    emb = reshape(emb, size(emb, 1), :)   # d_model × seq_len
-
+    # Lux preserves both input dimensions: d_model × sequence × batch.
     scaled_emb = emb .* sqrt(Float32(size(emb, 1)))
     out, st_pe = m.pos_enc(scaled_emb, ps.pos_enc, st.pos_enc)
-
-    return out, (embedding = st_emb, pos_enc = st_pe)
+    return out, (embedding=st_emb, pos_enc=st_pe)
 end
 
 end

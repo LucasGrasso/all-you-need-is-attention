@@ -34,53 +34,60 @@ function (m::MultiheadAttention)(X::Tuple, ps, st)
     return out, st
 end
 
+"""
+Apply multi-head attention to tensors shaped `(d_model, sequence_length, batch_size)`.
+
+`mask` has shape `(1 or query_length, key_length, 1, batch_size)` and uses
+`true` for positions that must not receive attention. Singleton query and head
+dimensions let key-padding masks broadcast over all query positions and heads.
+"""
 function multihead_attention(
     m::MultiheadAttention,
-    Q::AbstractMatrix{T},   # (d_model , seq_len) - NOTE: Julia's convention is column-major, so the sequence length is the second dimension
-    K::AbstractMatrix{T},   # (d_model , src_len)
-    V::AbstractMatrix{T},   # (d_model , src_len)
+    Q::AbstractArray{T,3},
+    K::AbstractArray{T,3},
+    V::AbstractArray{T,3},
     WQ::AbstractMatrix{T},  # (d_model , d_model)
     WK::AbstractMatrix{T},  # (d_model , d_model)
     WV::AbstractMatrix{T},  # (d_model , d_model)
     WO::AbstractMatrix{T},  # (h x d_v , d_model)
-    mask::Union{Nothing,AbstractMatrix{Bool}}=nothing
+    mask::Union{Nothing,AbstractArray{Bool,4}}=nothing
 ) where {T<:AbstractFloat}
-    seq_len = size(Q, 2)   # 
-    src_len = size(K, 2)   # may differ from seq_len
+    D, Tq, B = size(Q)
+    _, Tk, K_batch = size(K)
+    size(V) == (D, Tk, B) || throw(DimensionMismatch("K and V must have matching sequence and batch dimensions"))
+    K_batch == B || throw(DimensionMismatch("Q, K, and V must have the same batch size"))
+    D == m.d_model || throw(DimensionMismatch("input feature dimension must equal d_model"))
 
-    # Project
+    # Flatten only while applying independent linear projections. The original
+    # `(feature, sequence, batch)` structure is restored before attention.
+    Q_proj = reshape(WQ * reshape(Q, D, :), D, Tq, B)
+    K_proj = reshape(WK * reshape(K, D, :), D, Tk, B)
+    V_proj = reshape(WV * reshape(V, D, :), D, Tk, B)
 
-    Q_proj = WQ * Q # (d_model, seq_len)
-    K_proj = WK * K # (d_model, src_len)
-    V_proj = WV * V # (d_model, src_len)
+    # Heads and examples become independent batched GEMMs, never a longer
+    # sequence. The final axis of Qh/Kh/Vh is `head × batch`.
+    Qh = reshape(permutedims(reshape(Q_proj, m.d_k, m.h, Tq, B), (1, 3, 2, 4)), m.d_k, Tq, :)
+    Kh = reshape(permutedims(reshape(K_proj, m.d_k, m.h, Tk, B), (1, 3, 2, 4)), m.d_k, Tk, :)
+    Vh = reshape(permutedims(reshape(V_proj, m.d_v, m.h, Tk, B), (1, 3, 2, 4)), m.d_v, Tk, :)
 
-    # Split into heads
-
-    Q_h = reshape(Q_proj, m.d_k, m.h, seq_len)  # (d_k, h, seq_len)
-    K_h = reshape(K_proj, m.d_k, m.h, src_len)  # (d_k, h, src_len)
-    V_h = reshape(V_proj, m.d_v, m.h, src_len)  # (d_v, h, src_len)
-
-    Q_h = permutedims(Q_h, (1, 3, 2))  # (d_k, seq_len, h)
-    K_h = permutedims(K_h, (1, 3, 2))  # (d_k, src_len, h)
-    V_h = permutedims(V_h, (1, 3, 2))  # (d_v, src_len, h)
-
-    # Now h is the batch dimention, so we can use batched matrix multiplication for attention scores
-
-    scores = batched_mul(batched_adjoint(Q_h), K_h) ./ T(sqrt(m.d_k))  # (seq_len, src_len, m.h)
+    scores = reshape(
+        batched_mul(batched_adjoint(Qh), Kh) ./ sqrt(T(m.d_k)),
+        Tq, Tk, m.h, B,
+    )
 
     # Apply mask if provided
     if mask !== nothing
+        (size(mask, 1) in (1, Tq) && size(mask, 2) == Tk && size(mask, 3) == 1 && size(mask, 4) == B) ||
+            throw(DimensionMismatch("mask must have shape (1 or Tq, Tk, 1, B)"))
         scores = scores .+ ifelse.(mask, T(-Inf), T(0))
     end
 
-    weights = softmax(scores, dims=2)
-    heads = batched_mul(V_h, batched_adjoint(weights))  # (d_v, seq_len, m.h)
-    concat = permutedims(heads, (1, 3, 2))  # (d_v, m.h, seq_len)
-    concat = reshape(concat, m.d_model, seq_len) # (d_model, seq_len)
+    weights = softmax(scores; dims=2)
+    heads = batched_mul(Vh, batched_adjoint(reshape(weights, Tq, Tk, :)))
+    heads = reshape(heads, m.d_v, Tq, m.h, B)
+    concat = reshape(permutedims(heads, (1, 3, 2, 4)), m.d_model, Tq, B)
 
-    out = WO * concat  # (seq_len, m.d_model)
-
-    return out
+    return reshape(WO * reshape(concat, m.d_model, :), m.d_model, Tq, B)
 end
 
 end

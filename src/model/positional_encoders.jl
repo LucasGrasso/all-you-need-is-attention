@@ -26,9 +26,11 @@ end
 
 Lux.initialstates(::AbstractRNG, ::PositionalEncoding) = (;)
 
-function (m::PositionalEncoding)(x::AbstractMatrix, ps, st)
+function (m::PositionalEncoding)(x::AbstractArray{<:AbstractFloat,3}, ps, st)
     seq_len = size(x, 2)
-    return x .+ @view(ps.pe[:, 1:seq_len]), st
+    seq_len <= m.max_len || throw(ArgumentError("sequence length exceeds max_len"))
+    pe = reshape(@view(ps.pe[:, 1:seq_len]), m.d_model, seq_len, 1)
+    return x .+ pe, st
 end
 
 end

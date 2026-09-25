@@ -99,3 +99,29 @@ function make_dataset(
     println("Loaded $(length(data)) sentence pairs")
     return data
 end
+
+"""Pad examples into fixed-size `sequence × batch` matrices and padding masks."""
+function make_batches(data; batch_size::Int=32, pad_id::Int=1)
+    batch_size > 0 || throw(ArgumentError("batch_size must be positive"))
+    batches = Vector{Tuple{Matrix{Int},Matrix{Int},Matrix{Bool},Matrix{Bool}}}()
+
+    for first_index in 1:batch_size:length(data)
+        examples = @view data[first_index:min(first_index + batch_size - 1, length(data))]
+        batch_len = length(examples)
+        src_len = maximum(length(vec(src)) for (src, _) in examples)
+        tgt_len = maximum(length(vec(tgt)) for (_, tgt) in examples)
+
+        src_batch = fill(pad_id, src_len, batch_len)
+        tgt_batch = fill(pad_id, tgt_len, batch_len)
+        for (column, (src, tgt)) in enumerate(examples)
+            src_ids = vec(src)
+            tgt_ids = vec(tgt)
+            src_batch[1:length(src_ids), column] .= src_ids
+            tgt_batch[1:length(tgt_ids), column] .= tgt_ids
+        end
+
+        push!(batches, (src_batch, tgt_batch, src_batch .== pad_id, tgt_batch .== pad_id))
+    end
+
+    return batches
+end

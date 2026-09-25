@@ -22,7 +22,7 @@ println("Italian vocab size: $tgt_vocab_size")
 sos_id = 2
 eos_id = 3
 
-data = make_dataset(
+examples = make_dataset(
     es_sentences, it_sentences,
     es_vocab, it_vocab;
     max_len=64,
@@ -30,6 +30,7 @@ data = make_dataset(
     eos_id=eos_id,
     max_samples=5000
 )
+data = make_batches(examples; batch_size=32, pad_id=1)
 
 # ── MODEL ──────────────────────────────────────────────
 
@@ -63,7 +64,7 @@ if device != Lux.cpu_device()
     println("CUDA available, moving to GPU...")
     ps = ps |> device
     st = st |> device
-    data = [(src |> device, tgt |> device) for (src, tgt) in data]
+    data = [(src |> device, tgt |> device, src_pad |> device, tgt_pad |> device) for (src, tgt, src_pad, tgt_pad) in data]
 else
     println("No GPU found, training on CPU...")
 end
